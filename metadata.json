@@ -1,0 +1,6 @@
+{
+  "name": "Win Health",
+  "description": "A zero-simulation unified health workspace combining an interactive patient biometric companion with a secure HDS-compliant doctor e-prescription pad and real-time Gemini AI health coaching and safety auditing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
