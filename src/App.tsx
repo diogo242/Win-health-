@@ -2255,7 +2255,7 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <>
+                <div>
                   {/* Patient Selector for DMP */}
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
@@ -2700,7 +2700,7 @@ export default function App() {
                 </div>
               </div>
             )}
-            </>
+            </div>
             </motion.div>
           )}
 
