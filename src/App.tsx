@@ -1072,8 +1072,7 @@ export default function App() {
     Win Health v5.0 - Plateforme d'Intégration d'Intelligence Médicale.
   </div>
 </body>
-</html>
-    `;
+</html>`;
 
     const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
