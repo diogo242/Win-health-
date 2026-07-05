@@ -5,11 +5,8 @@ import {
   User, Heart, Shield, Hash, FileText, AlertTriangle,
   Stethoscope, MapPin, Star, Phone, Clock, ChevronRight,
   CheckCircle2, Loader2, Activity, Droplet, Calendar,
-  Lock, Download, Eye, EyeOff, Zap
+  Lock, Eye, EyeOff, Zap
 } from "lucide-react";
-import {
-  APIProvider, Map, AdvancedMarker, Pin, InfoWindow
-} from "@vis.gl/react-google-maps";
 
 // ---- Types ----
 export interface PatientData {
@@ -40,13 +37,6 @@ interface MedicalRecordProps {
   clinics: Clinic[];
   onBookClinic?: (clinic: Clinic) => void;
 }
-
-const MAPS_KEY =
-  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
-  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
-  "";
-
-const hasMapKey = Boolean(MAPS_KEY) && MAPS_KEY.length > 10;
 
 // Symptom keyword → specialty matching
 const SYMPTOM_MAP: Record<string, string[]> = {
@@ -324,11 +314,11 @@ export default function MedicalRecord({
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
 
               {/* Clinic List */}
-              <div className="xl:col-span-2 space-y-3">
+              <div className="xl:col-span-2 space-y-3 h-[480px] overflow-y-auto pr-2">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Établissements recommandés
+                  {recommendations.length > 0 ? "Établissements recommandés" : "Tous les Cabinets Partenaires"}
                 </h4>
-                {recommendations.map((clinic, idx) => (
+                {(recommendations.length > 0 ? recommendations : clinics).map((clinic, idx) => (
                   <motion.div
                     key={clinic.id}
                     initial={{ opacity: 0, x: -10 }}
@@ -371,10 +361,13 @@ export default function MedicalRecord({
                             {clinic.rating}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5 text-[11px] text-slate-500">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {clinic.hours}
+                          </span>
+                          <span className="flex items-center gap-1 font-bold text-slate-700">
+                            Coût : {clinic.cost ? `${clinic.cost.toLocaleString('fr-FR')} FCFA` : "Non spécifié"}
                           </span>
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3" />
@@ -405,107 +398,23 @@ export default function MedicalRecord({
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                   Géolocalisation — Cotonou, Bénin
                 </h4>
-                {hasMapKey ? (
-                  <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-[480px]">
-                    <APIProvider apiKey={MAPS_KEY} version="weekly">
-                      <Map
-                        center={mapCenter}
-                        zoom={mapZoom}
-                        mapId="WIN_HEALTH_DOSSIER"
-                        onCenterChanged={(e) => e.detail?.center && setMapCenter(e.detail.center)}
-                        onZoomChanged={(e) => typeof e.detail?.zoom === "number" && setMapZoom(e.detail.zoom)}
-                        style={{ width: "100%", height: "100%" }}
-                        internalUsageAttributionIds={["gmp_mcp_codeassist_v1_aistudio"]}
-                      >
-                        {recommendations.map((clinic) => (
-                          <AdvancedMarker
-                            key={clinic.id}
-                            position={clinic.coordinates}
-                            onClick={() => {
-                              setActiveClinic(clinic);
-                              setMapCenter(clinic.coordinates);
-                              setMapZoom(15);
-                            }}
-                          >
-                            <Pin
-                              background={
-                                activeClinic?.id === clinic.id
-                                  ? "#059669"
-                                  : (clinic.matchScore ?? 0) > 0
-                                  ? "#f59e0b"
-                                  : "#6366f1"
-                              }
-                              borderColor={
-                                activeClinic?.id === clinic.id ? "#047857"
-                                  : (clinic.matchScore ?? 0) > 0 ? "#d97706"
-                                  : "#4338ca"
-                              }
-                              glyphColor="#fff"
-                            />
-                          </AdvancedMarker>
-                        ))}
-
-                        {activeClinic && (
-                          <InfoWindow
-                            position={activeClinic.coordinates}
-                            onCloseClick={() => setActiveClinic(null)}
-                          >
-                            <div className="p-1.5 min-w-[220px] font-sans text-slate-900">
-                              <div className="flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold w-fit mb-1.5 border border-emerald-200">
-                                <Shield className="w-3 h-3" />
-                                Cabinet Certifié Win Health
-                              </div>
-                              <p className="text-xs font-bold">{activeClinic.name}</p>
-                              <p className="text-[10px] text-indigo-600 font-medium">{activeClinic.specialty}</p>
-                              <div className="mt-2 space-y-1 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5">
-                                <p className="flex items-center gap-1"><MapPin className="w-3 h-3" />{activeClinic.address}</p>
-                                <p className="flex items-center gap-1"><Phone className="w-3 h-3" />{activeClinic.phone}</p>
-                                <p className="flex items-center gap-1"><Clock className="w-3 h-3" />{activeClinic.hours}</p>
-                                <p className="flex items-center gap-1 text-amber-600 font-semibold">
-                                  <Star className="w-3 h-3 fill-amber-500 text-amber-500" />{activeClinic.rating} / 5
-                                </p>
-                              </div>
-                              {onBookClinic && (
-                                <button
-                                  onClick={() => onBookClinic(activeClinic)}
-                                  className="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1 px-2 rounded text-[10px] transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                                >
-                                  <Calendar className="w-3 h-3" />
-                                  Réserver ici
-                                </button>
-                              )}
-                            </div>
-                          </InfoWindow>
-                        )}
-                      </Map>
-                    </APIProvider>
+                <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-[480px] bg-slate-100 relative">
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    allowFullScreen
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={`https://maps.google.com/maps?q=${activeClinic ? encodeURIComponent(activeClinic.name + ', ' + activeClinic.address + ', Cotonou') : mapCenter.lat + ',' + mapCenter.lng}&t=m&z=${mapZoom}&output=embed&iwloc=near`}
+                  ></iframe>
+                  
+                  {/* Petit badge superposé pour faire "pro" */}
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-md border border-slate-200/50 flex items-center gap-2 pointer-events-none">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-bold text-slate-700">Carte interactive en direct</span>
                   </div>
-                ) : (
-                  /* Fallback without API key — static beautiful card */
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 h-[480px] flex flex-col items-center justify-center gap-4 text-center p-6">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shadow-lg">
-                      <MapPin className="w-8 h-8 text-emerald-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-700 mb-1">Carte Google Maps</p>
-                      <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
-                        Ajoutez la variable <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px]">GOOGLE_MAPS_PLATFORM_KEY</code> dans vos secrets pour afficher la carte réelle des cliniques.
-                      </p>
-                    </div>
-                    <div className="space-y-2 w-full max-w-xs">
-                      {recommendations.slice(0, 3).map((c) => (
-                        <div key={c.id} className="bg-white rounded-xl border border-slate-200 px-4 py-2 text-left">
-                          <p className="text-xs font-bold text-slate-800">{c.name}</p>
-                          <p className="text-[11px] text-slate-500">{c.address}</p>
-                          <div className="flex items-center gap-1 mt-0.5 text-[10px] text-amber-600">
-                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                            <span>{c.rating} · {c.phone}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </motion.div>
