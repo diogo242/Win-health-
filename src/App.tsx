@@ -41,13 +41,15 @@ import {
   MapPin,
   Star,
   Mail,
-  Phone
+  Phone,
+  X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Platform, MetricDetail } from "./types";
 import { METRIC_DETAILS, INTEGRATION_TEMPLATES } from "./data";
 import ClinicMap, { Clinic } from "./components/ClinicMap";
 import AuthScreen, { PatientProfile, DoctorProfile, UserType } from "./components/AuthScreen";
+import MedicalRecord from "./components/MedicalRecord";
 
 // Real Cryptographic SHA-256 implementation
 function sha256(ascii: string): string {
@@ -245,6 +247,8 @@ export default function App() {
 
   // Navigation: 'audit' | 'patient' | 'doctor' | 'security'
   const [activeTab, setActiveTab] = useState<string>("patient");
+  const [isOpeningAuth, setIsOpeningAuth] = useState<boolean>(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   
   // Patient Profile state (persisted in localStorage to avoid simulation/temporary state)
   const [patientProfile, setPatientProfile] = useState<{
@@ -1324,27 +1328,32 @@ export default function App() {
     setPaymentError(null);
   };
 
+  // Helper for hospital book/pay flow with authentication trigger
+  const handleBookOrPayClinic = (clinic: Clinic, actionType: 'book' | 'pay') => {
+    if (!currentUser.isLoggedIn) {
+      setPendingAction(() => () => handleBookOrPayClinic(clinic, actionType));
+      setIsOpeningAuth(true);
+    } else {
+      if (actionType === 'book') {
+        const formElem = document.getElementById("booking-form-anchor");
+        if (formElem) {
+          formElem.scrollIntoView({ behavior: "smooth" });
+        }
+      } else {
+        // payment
+        handleCreateLightningInvoice(Math.round(clinic.cost / 40), `Consultation - ${clinic.name}`);
+        setActiveTab("bitcoin");
+      }
+    }
+  };
+
   // Helper to compute min/max for custom charts
   const systolicPoints = biometricsHistory.map((d) => d.systolic);
   const diastolicPoints = biometricsHistory.map((d) => d.diastolic);
   const hrPoints = biometricsHistory.map((d) => d.heartRate);
   const glucosePoints = biometricsHistory.map((d) => d.glucose);
 
-  if (!currentUser.isLoggedIn) {
-    return (
-      <AuthScreen 
-        onLoginPatient={(profile) => {
-          setCurrentUser({ type: 'patient', profile, isLoggedIn: true });
-          setActiveTab('patient');
-          setPatientQrToken("WIN-" + Math.random().toString(36).substring(2, 10).toUpperCase());
-        }}
-        onLoginDoctor={(profile) => {
-          setCurrentUser({ type: 'doctor', profile, isLoggedIn: true });
-          setActiveTab('doctor');
-        }}
-      />
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans flex flex-col justify-between">
@@ -1379,68 +1388,90 @@ export default function App() {
 
           {/* Quick Platform Role Switcher */}
           <div className="flex bg-slate-100 p-1 rounded-xl self-start md:self-center border border-slate-200/40">
-            {currentUser.type === 'patient' && (
+            {!currentUser.isLoggedIn ? (
+              <button
+                onClick={() => setIsOpeningAuth(true)}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all cursor-pointer shadow-xs"
+              >
+                Connexion / Inscription
+              </button>
+            ) : (
               <>
+                {currentUser.type === 'patient' && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab("dossier")}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeTab === "dossier"
+                          ? "bg-white text-emerald-700 shadow-sm border border-emerald-200/30"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5 text-emerald-500" />
+                      Mon Dossier
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("patient")}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeTab === "patient"
+                          ? "bg-white text-slate-900 shadow-sm border border-slate-200/20"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Smile className="w-3.5 h-3.5 text-indigo-500" />
+                      Tableau de bord
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("bitcoin")}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer relative overflow-hidden ${
+                        activeTab === "bitcoin"
+                          ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${activeTab === "bitcoin" ? "text-white animate-bounce" : "text-amber-500"}`} />
+                      Paiement Bitcoin (LNbits)
+                    </button>
+                  </>
+                )}
+
+                {currentUser.type === 'doctor' && (
+                  <button
+                    onClick={() => setActiveTab("doctor")}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      activeTab === "doctor"
+                        ? "bg-white text-emerald-700 shadow-sm border border-slate-200/20"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                    Espace Praticien DMP
+                  </button>
+                )}
+
                 <button
-                  onClick={() => setActiveTab("patient")}
+                  onClick={() => setActiveTab("security")}
                   className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === "patient"
-                      ? "bg-white text-slate-900 shadow-sm border border-slate-200/20"
+                    activeTab === "security"
+                      ? "bg-white text-rose-700 shadow-sm border border-slate-200/20"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  <Smile className="w-3.5 h-3.5 text-indigo-500" />
-                  Tableau de bord
+                  <Lock className="w-3.5 h-3.5 text-rose-500" />
+                  Sécurité HDS
                 </button>
+                
                 <button
-                  onClick={() => setActiveTab("bitcoin")}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer relative overflow-hidden ${
-                    activeTab === "bitcoin"
-                      ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                  }`}
+                  onClick={() => {
+                    setCurrentUser({ type: 'patient', profile: null, isLoggedIn: false });
+                    setHasDoctorAccess(false);
+                  }}
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 transition-all cursor-pointer"
                 >
-                  <Zap className={`w-3.5 h-3.5 ${activeTab === "bitcoin" ? "text-white animate-bounce" : "text-amber-500"}`} />
-                  Paiement Bitcoin (LNbits)
+                  Déconnexion
                 </button>
               </>
             )}
-
-            {currentUser.type === 'doctor' && (
-              <button
-                onClick={() => setActiveTab("doctor")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === "doctor"
-                    ? "bg-white text-emerald-700 shadow-sm border border-slate-200/20"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5 text-emerald-500" />
-                Espace Praticien DMP
-              </button>
-            )}
-
-            <button
-              onClick={() => setActiveTab("security")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === "security"
-                  ? "bg-white text-rose-700 shadow-sm border border-slate-200/20"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5 text-rose-500" />
-              Sécurité HDS
-            </button>
-            
-            <button
-              onClick={() => {
-                setCurrentUser({ type: 'patient', profile: null, isLoggedIn: false });
-                setHasDoctorAccess(false);
-              }}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-600 transition-all cursor-pointer"
-            >
-              Déconnexion
-            </button>
           </div>
         </div>
       </header>
@@ -1448,7 +1479,39 @@ export default function App() {
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         <AnimatePresence mode="wait">
-          
+
+          {/* TAB 0: DOSSIER MÉDICAL PATIENT */}
+          {activeTab === "dossier" && (
+            <motion.div
+              key="dossier-tab"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+            >
+              <MedicalRecord
+                patient={{
+                  firstName: currentUser.profile ? (currentUser.profile as any).firstName || patientProfile.firstName : patientProfile.firstName,
+                  lastName: currentUser.profile ? (currentUser.profile as any).lastName || patientProfile.lastName : patientProfile.lastName,
+                  email: currentUser.profile ? (currentUser.profile as any).email || patientProfile.email : patientProfile.email,
+                  phone: currentUser.profile ? (currentUser.profile as any).phone || patientProfile.phone : patientProfile.phone,
+                  bloodGroup: currentUser.profile ? (currentUser.profile as any).bloodGroup || patientProfile.bloodGroup : patientProfile.bloodGroup,
+                  birthDate: currentUser.profile ? (currentUser.profile as any).birthDate || patientProfile.birthDate : patientProfile.birthDate,
+                }}
+                sha256={sha256}
+                clinics={clinicsList}
+                onBookClinic={(clinic) => {
+                  setBookDoctor(clinic.name);
+                  setActiveTab("patient");
+                  setTimeout(() => {
+                    const el = document.getElementById("booking-form-anchor");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }, 300);
+                }}
+              />
+            </motion.div>
+          )}
+
           {/* TAB 1: PATIENT PORTAL (Sleek tracking, history curves, and Gemini advisor chat) */}
           {activeTab === "patient" && (
             <motion.div
@@ -1500,7 +1563,14 @@ export default function App() {
                     </button>
                     
                     <button
-                      onClick={() => setActiveTab("bitcoin")}
+                      onClick={() => {
+                        if (!currentUser.isLoggedIn) {
+                          setPendingAction(() => () => setActiveTab("bitcoin"));
+                          setIsOpeningAuth(true);
+                        } else {
+                          setActiveTab("bitcoin");
+                        }
+                      }}
                       className="bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 font-bold px-6 py-3.5 rounded-full text-xs sm:text-sm transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <span>Consulter mes Factures</span>
@@ -1510,10 +1580,17 @@ export default function App() {
                   {/* Trust Indicators & QR Code */}
                   <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-6 md:items-center justify-between">
                     <div className="flex flex-wrap gap-6 text-slate-500 text-[11px] font-medium items-center">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                        <span>Profil actif : <strong className="text-slate-800 font-semibold">{currentUser.profile?.firstName} {currentUser.profile?.lastName}</strong> ({currentUser.profile?.bloodGroup || 'A+'})</span>
-                      </div>
+                      {currentUser.isLoggedIn ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                          <span>Profil actif : <strong className="text-slate-800 font-semibold">{currentUser.profile?.firstName} {currentUser.profile?.lastName}</strong> ({currentUser.profile?.bloodGroup || 'A+'})</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
+                          <span className="text-amber-800 font-semibold bg-amber-50 border border-amber-200/50 px-2 py-0.5 rounded">Mode Démo (Recherche Hôpitaux)</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5">
                         <Shield className="w-3.5 h-3.5 text-emerald-500" />
                         <span>Hébergement certifié HDS</span>
@@ -1524,20 +1601,237 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-4 shadow-sm">
-                      <div className="p-2 bg-slate-50 rounded-lg">
-                        {/* Fake SVG QR Code */}
-                        <svg viewBox="0 0 100 100" className="w-12 h-12 text-slate-800">
-                          <rect width="100" height="100" fill="#fff" />
-                          <path d="M10 10h20v20h-20zM20 20h-1v-1h1z" fill="currentColor" />
-                          <path d="M70 10h20v20h-20zM80 20h-1v-1h1z" fill="currentColor" />
-                          <path d="M10 70h20v20h-20zM20 80h-1v-1h1z" fill="currentColor" />
-                          <path d="M40 10h10v10h-10zM55 20h15v10h-15zM40 30h30v10h-30zM10 40h20v10h-20zM70 40h20v10h-20zM10 55h15v10h-15zM40 55h20v20h-20zM30 70h10v10h-10zM70 70h20v10h-20z" fill="currentColor" />
-                        </svg>
+                    {currentUser.isLoggedIn && (
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-4 shadow-sm">
+                        <div className="p-2 bg-slate-50 rounded-lg">
+                          {/* Fake SVG QR Code */}
+                          <svg viewBox="0 0 100 100" className="w-12 h-12 text-slate-800">
+                            <rect width="100" height="100" fill="#fff" />
+                            <path d="M10 10h20v20h-20zM20 20h-1v-1h1z" fill="currentColor" />
+                            <path d="M70 10h20v20h-20zM80 20h-1v-1h1z" fill="currentColor" />
+                            <path d="M10 70h20v20h-20zM20 80h-1v-1h1z" fill="currentColor" />
+                            <path d="M40 10h10v10h-10zM55 20h15v10h-15zM40 30h30v10h-30zM10 40h20v10h-20zM70 40h20v10h-20zM10 55h15v10h-15zM40 55h20v20h-20zM30 70h10v10h-10zM70 70h20v10h-20z" fill="currentColor" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-semibold uppercase">Accès Médecin</div>
+                          <div className="text-sm font-bold font-mono tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{patientQrToken}</div>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+
+              {/* Cabinet Finder & Booking (Real Google Maps) */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-6">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 font-display uppercase tracking-wider flex items-center gap-2">
+                    <MapPin className="w-4.5 h-4.5 text-indigo-500" />
+                    Trouver un Cabinet Médical (Géolocalisation Google Maps)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Recherchez votre praticien sur la carte interactive de Cotonou, consultez les avis et horaires, et planifiez votre rendez-vous directement en un clic.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                  {/* Left: Interactive Real Google Map */}
+                  <div className="lg:col-span-8">
+                    <ClinicMap 
+                      clinics={clinicsList}
+                      selectedClinic={selectedClinic}
+                      onSelectClinic={(clinic) => {
+                        setSelectedClinic(clinic);
+                        setBookDoctor(clinic.name);
+                      }}
+                      onBookClinic={(clinic) => {
+                        setSelectedClinic(clinic);
+                        setBookDoctor(clinic.name);
+                        const formElem = document.getElementById("booking-form-anchor");
+                        if (formElem) {
+                          formElem.scrollIntoView({ behavior: "smooth" });
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* Right: Clinic Directory & Fast Booking */}
+                  <div className="lg:col-span-4 flex flex-col justify-between h-[420px] bg-slate-50 border border-slate-200/60 p-4 rounded-xl">
+                    <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Cabinets Partenaires Win Health
+                      </h4>
+                      <div className="space-y-3">
+                        {clinicsList.map((clinic) => {
+                          const isSelected = selectedClinic?.id === clinic.id;
+                          return (
+                            <div 
+                              key={clinic.id}
+                              onClick={() => {
+                                setSelectedClinic(clinic);
+                                setBookDoctor(clinic.name);
+                              }}
+                              className={`p-3 rounded-xl border transition-all cursor-pointer text-left ${
+                                isSelected 
+                                  ? "bg-white border-indigo-500 shadow-sm ring-1 ring-indigo-500/20" 
+                                  : "bg-white/80 hover:bg-white border-slate-200/60"
+                              }`}
+                            >
+                              <div className="flex justify-between items-start gap-2">
+                                <h5 className="text-[11px] font-bold text-slate-900 leading-tight">{clinic.name}</h5>
+                                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded shrink-0">
+                                  {clinic.specialty}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate text-[10px]">{clinic.address}</span>
+                              </p>
+                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[9px] text-slate-400">
+                                <span className="flex items-center gap-1 text-amber-600 font-semibold">
+                                  <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                  {clinic.rating} / 5
+                                </span>
+                                <span>{clinic.hours}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-200/80 pt-3 mt-3">
+                      {selectedClinic ? (
+                        <div className="p-2.5 bg-indigo-50/60 border border-indigo-100 rounded-lg text-left">
+                          <p className="text-[10px] font-bold text-indigo-900 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                            Cabinet Sélectionné :
+                          </p>
+                          <p className="text-[11px] font-bold text-slate-800 mt-0.5">{selectedClinic.name}</p>
+                          <p className="text-[10px] text-slate-500">{selectedClinic.address}</p>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-center text-[10px] text-slate-500">
+                          Sélectionnez un cabinet sur la carte ou la liste pour réserver
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Separator / Anchor for smooth scroll */}
+                <div id="booking-form-anchor" className="border-t border-slate-150 pt-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left Column: Form to book */}
+                    <div className="lg:col-span-5 space-y-4">
                       <div>
-                        <div className="text-[10px] text-slate-500 font-semibold uppercase">Accès Médecin</div>
-                        <div className="text-sm font-bold font-mono tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{patientQrToken}</div>
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-indigo-500" />
+                          Formulaire d'Agenda Synchrone
+                        </h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          L'intégration directe de l'agenda médecin de Win Health Pro évite tout risque de double-réservation.
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleBookAppointment} className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-slate-500 uppercase">Cabinet / Praticien</label>
+                          <select 
+                            value={bookDoctor}
+                            onChange={(e) => {
+                              setBookDoctor(e.target.value);
+                              const matchingClinic = clinicsList.find(c => c.name === e.target.value);
+                              if (matchingClinic) setSelectedClinic(matchingClinic);
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
+                          >
+                            {clinicsList.map((c) => (
+                              <option key={c.id} value={c.name}>{c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase">Date souhaitée</label>
+                            <input 
+                              type="date" 
+                              value={bookDate}
+                              onChange={(e) => setBookDate(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase">Créneau disponible</label>
+                            <select 
+                              value={bookTime}
+                              onChange={(e) => setBookTime(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
+                            >
+                              <option>09:00 - Disponible</option>
+                              <option>10:00 - Disponible</option>
+                              <option>11:15 - Disponible</option>
+                              <option>14:30 - Disponible</option>
+                              <option>16:00 - Disponible</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-slate-500 uppercase">Motif de consultation</label>
+                          <input 
+                            type="text" 
+                            value={bookReason}
+                            onChange={(e) => setBookReason(e.target.value)}
+                            placeholder="Ex: Douleurs abdominales, renouvellement traitement tension..."
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
+                          />
+                        </div>
+
+                        <button 
+                          type="submit"
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Réserver le créneau de consultation
+                        </button>
+
+                        {bookSuccess && (
+                          <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-800 text-[10px] flex items-center gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Rendez-vous planifié et notifié par SMS !</span>
+                          </div>
+                        )}
+                      </form>
+                    </div>
+
+                    {/* Right Column: Booked appointments list */}
+                    <div className="lg:col-span-7 space-y-4">
+                      <div>
+                        <h4 className="text-[10px] font-semibold text-slate-400 uppercase">Vos consultations à venir</h4>
+                        <div className="space-y-3 mt-2">
+                          {appointments.map((apt) => (
+                            <div key={apt.id} className="bg-slate-50 border border-slate-150 p-3.5 rounded-xl flex items-center justify-between gap-4">
+                              <div className="space-y-1">
+                                <div className="text-xs font-bold text-slate-950 flex items-center gap-1.5">
+                                  <User className="w-3.5 h-3.5 text-slate-400" />
+                                  {apt.doctor}
+                                </div>
+                                <p className="text-[11px] text-slate-500">{apt.reason}</p>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{apt.date}</span>
+                                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{apt.time}</span>
+                                </div>
+                              </div>
+                              <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold px-2.5 py-0.5 rounded-full shrink-0">
+                                {apt.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1973,219 +2267,148 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Cabinet Finder & Booking (Real Google Maps) */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-6">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 font-display uppercase tracking-wider flex items-center gap-2">
-                    <MapPin className="w-4.5 h-4.5 text-indigo-500" />
-                    Trouver un Cabinet Médical (Géolocalisation Google Maps)
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Recherchez votre praticien sur la carte interactive de Cotonou, consultez les avis et horaires, et planifiez votre rendez-vous directement en un clic.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  {/* Left: Interactive Real Google Map */}
-                  <div className="lg:col-span-8">
-                    <ClinicMap 
-                      clinics={clinicsList}
-                      selectedClinic={selectedClinic}
-                      onSelectClinic={(clinic) => {
-                        setSelectedClinic(clinic);
-                        setBookDoctor(clinic.name);
-                      }}
-                      onBookClinic={(clinic) => {
-                        setSelectedClinic(clinic);
-                        setBookDoctor(clinic.name);
-                        const formElem = document.getElementById("booking-form-anchor");
-                        if (formElem) {
-                          formElem.scrollIntoView({ behavior: "smooth" });
-                        }
-                      }}
-                    />
+              {/* Patient AI Coach Interface (Real-time clinical analysis) */}
+              <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-lg border border-slate-800">
+                <div className="flex flex-col lg:flex-row lg:items-start gap-8">
+                  {/* Assistant Left Pitch */}
+                  <div className="lg:w-1/3 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-200 font-display uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                        <span>Coach de Télésurveillance IA</span>
+                        {isPremiumUnlocked ? (
+                          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[9px] font-bold font-mono px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                            <Zap className="w-2.5 h-2.5 text-amber-400 fill-amber-400" /> Premium via Lightning
+                          </span>
+                        ) : (
+                          <span className="bg-slate-800 text-slate-400 border border-slate-700 text-[9px] font-bold font-mono px-1.5 py-0.5 rounded-full">
+                            Mode Standard
+                          </span>
+                        )}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Ce module d'intelligence clinique analyse instantanément votre carnet de constantes physiques saisies, vos symptômes ponctuels déclarés, et formule des plans préventifs d'hydratation et de bien-être, certifiés conformes au DMP médecin.
+                    </p>
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-500 space-y-1.5">
+                      <span className="font-semibold text-slate-300 block">Dernières constantes transmises :</span>
+                      <ul className="space-y-0.5 font-mono">
+                        <li>&#8226; TA: {biometricsHistory[biometricsHistory.length-1].systolic}/{biometricsHistory[biometricsHistory.length-1].diastolic} mmHg</li>
+                        <li>&#8226; Cardiaque: {biometricsHistory[biometricsHistory.length-1].heartRate} bpm</li>
+                        <li>&#8226; Glycémie: {biometricsHistory[biometricsHistory.length-1].glucose} g/L</li>
+                      </ul>
+                    </div>
                   </div>
 
-                  {/* Right: Clinic Directory & Fast Booking */}
-                  <div className="lg:col-span-4 flex flex-col justify-between h-[420px] bg-slate-50 border border-slate-200/60 p-4 rounded-xl">
-                    <div className="space-y-4 overflow-y-auto pr-1 flex-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Cabinets Partenaires Win Health
-                      </h4>
-                      <div className="space-y-3">
-                        {clinicsList.map((clinic) => {
-                          const isSelected = selectedClinic?.id === clinic.id;
-                          return (
-                            <div 
-                              key={clinic.id}
-                              onClick={() => {
-                                setSelectedClinic(clinic);
-                                setBookDoctor(clinic.name);
-                              }}
-                              className={`p-3 rounded-xl border transition-all cursor-pointer text-left ${
-                                isSelected 
-                                  ? "bg-white border-indigo-500 shadow-sm ring-1 ring-indigo-500/20" 
-                                  : "bg-white/80 hover:bg-white border-slate-200/60"
-                              }`}
-                            >
-                              <div className="flex justify-between items-start gap-2">
-                                <h5 className="text-[11px] font-bold text-slate-900 leading-tight">{clinic.name}</h5>
-                                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded shrink-0">
-                                  {clinic.specialty}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="truncate text-[10px]">{clinic.address}</span>
-                              </p>
-                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[9px] text-slate-400">
-                                <span className="flex items-center gap-1 text-amber-600 font-semibold">
-                                  <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-                                  {clinic.rating} / 5
-                                </span>
-                                <span>{clinic.hours}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                  {/* Chat Panel */}
+                  <div className="flex-1 space-y-4">
+                    <form onSubmit={handleCallHealthCoach} className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-mono text-slate-400 font-semibold uppercase block">Symptômes éventuels à déclarer (Optionnel)</label>
+                        <input 
+                          type="text"
+                          value={coachSymptoms}
+                          onChange={(e) => setCoachSymptoms(e.target.value)}
+                          placeholder="Ex: Légères palpitations l'après-midi, sécheresse buccale, fatigue..."
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-slate-200 placeholder:text-slate-600"
+                        />
                       </div>
-                    </div>
-
-                    <div className="border-t border-slate-200/80 pt-3 mt-3">
-                      {selectedClinic ? (
-                        <div className="p-2.5 bg-indigo-50/60 border border-indigo-100 rounded-lg text-left">
-                          <p className="text-[10px] font-bold text-indigo-900 flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                            Cabinet Sélectionné :
-                          </p>
-                          <p className="text-[11px] font-bold text-slate-800 mt-0.5">{selectedClinic.name}</p>
-                          <p className="text-[10px] text-slate-500">{selectedClinic.address}</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-mono text-slate-400 font-semibold uppercase block">Votre Question Préventive au Coach Clinique</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            value={coachQuestion}
+                            onChange={(e) => setCoachQuestion(e.target.value)}
+                            placeholder="Ex: Analyse mes constantes d'aujourd'hui et donne-moi des conseils d'hydratation..."
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-slate-200 placeholder:text-slate-600"
+                          />
+                          <button 
+                            type="submit" 
+                            disabled={coachLoading}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-4 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer disabled:bg-slate-800 disabled:text-slate-600"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            {coachLoading ? "Calcul..." : "Analyser"}
+                          </button>
                         </div>
+                      </div>
+                    </form>
+
+                    {/* Chat Response Display */}
+                    <div className="bg-slate-950 rounded-xl p-4 border border-slate-850 min-h-[140px] max-h-[300px] overflow-auto select-text">
+                      {coachLoading ? (
+                        <div className="flex flex-col items-center justify-center py-8 space-y-2">
+                          <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin" />
+                          <p className="text-[11px] text-slate-500">Génération du plan préventif crypté...</p>
+                        </div>
+                      ) : coachError ? (
+                        <div className="text-rose-400 text-xs flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-rose-400" />
+                          <span>{coachError}</span>
+                        </div>
+                      ) : coachResponse ? (
+                        <StyledMarkdown content={coachResponse} />
                       ) : (
-                        <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-center text-[10px] text-slate-500">
-                          Sélectionnez un cabinet sur la carte ou la liste pour réserver
+                        <div className="flex flex-col items-center justify-center py-8 text-center text-slate-600">
+                          <HelpCircle className="w-8 h-8 mb-2 text-slate-850" />
+                          <p className="text-xs">Saisissez vos symptômes ou votre question ci-dessus pour lancer une analyse par l'IA.</p>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Separator / Anchor for smooth scroll */}
-                <div id="booking-form-anchor" className="border-t border-slate-150 pt-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    {/* Left Column: Form to book */}
-                    <div className="lg:col-span-5 space-y-4">
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-indigo-500" />
-                          Formulaire d'Agenda Synchrone
-                        </h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          L'intégration directe de l'agenda médecin de Win Health Pro évite tout risque de double-réservation.
-                        </p>
-                      </div>
-
-                      <form onSubmit={handleBookAppointment} className="space-y-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-500 uppercase">Cabinet / Praticien</label>
-                          <select 
-                            value={bookDoctor}
-                            onChange={(e) => {
-                              setBookDoctor(e.target.value);
-                              const matchingClinic = clinicsList.find(c => c.name === e.target.value);
-                              if (matchingClinic) setSelectedClinic(matchingClinic);
-                            }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
-                          >
-                            {clinicsList.map((c) => (
-                              <option key={c.id} value={c.name}>{c.name}</option>
-                            ))}
-                          </select>
+              {/* Patient Read-Only DMP */}
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 font-display uppercase tracking-wider flex items-center gap-2">
+                    <Shield className="w-4.5 h-4.5 text-emerald-500" />
+                    Mon Dossier Médical (Lecture Seule)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1">Vos ordonnances scellées et cryptées. Toute modification est strictement réservée à votre médecin traitant.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {sealedPrescriptions.length === 0 ? (
+                    <div className="text-xs text-slate-400 italic p-4 bg-slate-50 rounded-xl">Aucune ordonnance scellée pour le moment.</div>
+                  ) : (
+                    sealedPrescriptions.map((sp) => (
+                      <div key={sp.id} className="bg-slate-50 border border-slate-200/60 p-3.5 rounded-xl space-y-2 text-xs relative opacity-90 hover:opacity-100 transition-opacity">
+                        <div className="absolute right-3 top-3 text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> Lecture Seule
                         </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase">Date souhaitée</label>
-                            <input 
-                              type="date" 
-                              value={bookDate}
-                              onChange={(e) => setBookDate(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-semibold text-slate-500 uppercase">Créneau disponible</label>
-                            <select 
-                              value={bookTime}
-                              onChange={(e) => setBookTime(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
-                            >
-                              <option>09:00 - Disponible</option>
-                              <option>10:00 - Disponible</option>
-                              <option>11:15 - Disponible</option>
-                              <option>14:30 - Disponible</option>
-                              <option>16:00 - Disponible</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-500 uppercase">Motif de consultation</label>
-                          <input 
-                            type="text" 
-                            value={bookReason}
-                            onChange={(e) => setBookReason(e.target.value)}
-                            placeholder="Ex: Douleurs abdominales, renouvellement traitement tension..."
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
-                          />
-                        </div>
-
-                        <button 
-                          type="submit"
-                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          Réserver le créneau de consultation
-                        </button>
-
-                        {bookSuccess && (
-                          <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-800 text-[10px] flex items-center gap-2">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Rendez-vous planifié et notifié par SMS !</span>
-                          </div>
-                        )}
-                      </form>
-                    </div>
-
-                    {/* Right Column: Booked appointments list */}
-                    <div className="lg:col-span-7 space-y-4">
-                      <div>
-                        <h4 className="text-[10px] font-semibold text-slate-400 uppercase">Vos consultations à venir</h4>
-                        <div className="space-y-3 mt-2">
-                          {appointments.map((apt) => (
-                            <div key={apt.id} className="bg-slate-50 border border-slate-150 p-3.5 rounded-xl flex items-center justify-between gap-4">
-                              <div className="space-y-1">
-                                <div className="text-xs font-bold text-slate-950 flex items-center gap-1.5">
-                                  <User className="w-3.5 h-3.5 text-slate-400" />
-                                  {apt.doctor}
-                                </div>
-                                <p className="text-[11px] text-slate-500">{apt.reason}</p>
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{apt.date}</span>
-                                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{apt.time}</span>
-                                </div>
-                              </div>
-                              <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold px-2.5 py-0.5 rounded-full shrink-0">
-                                {apt.status}
-                              </span>
+                        <div className="font-mono text-[10px] text-slate-400">{sp.id}</div>
+                        <div className="font-bold text-slate-900">{sp.patientName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{sp.date}</div>
+                        <div className="space-y-0.5 pt-1.5 border-t border-slate-200/50">
+                          {sp.drugs.map((d, i) => (
+                            <div key={i} className="text-[11px] text-slate-700 font-medium">
+                              &#8226; {d.name} ({d.dosage}) - {d.duration}
                             </div>
                           ))}
                         </div>
+                        <div className="pt-2 flex items-center justify-between gap-1.5 border-t border-slate-200/50 mt-1">
+                          <div className="flex items-center gap-1.5 text-[9px] text-indigo-700 font-mono font-bold truncate">
+                            <Hash className="w-3 h-3 text-indigo-500 shrink-0" />
+                            Signature : {sp.signatureHash.substring(0, 15)}...
+                          </div>
+                          <button
+                            onClick={() => handleDownloadPrescription(sp)}
+                            className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 hover:text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px] flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                          >
+                            <Download className="w-3 h-3" />
+                            Télécharger
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    ))
+                  )}
                 </div>
               </div>
+
             </motion.div>
           )}
 
@@ -3573,6 +3796,53 @@ export default function App() {
           </button>
         </div>
       </main>
+
+      {/* Auth Screen Modal Overlay */}
+      {isOpeningAuth && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-8">
+            <button 
+              onClick={() => setIsOpeningAuth(false)}
+              className="absolute right-6 top-6 z-50 bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-full transition-all cursor-pointer shadow-sm"
+              title="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <AuthScreen 
+              onLoginPatient={(profile) => {
+                setCurrentUser({ type: 'patient', profile, isLoggedIn: true });
+                setPatientProfile({
+                  firstName: profile.firstName,
+                  lastName: profile.lastName,
+                  email: profile.email,
+                  phone: profile.phone,
+                  bloodGroup: profile.bloodGroup,
+                  birthDate: profile.birthDate,
+                  isInitialized: true,
+                });
+                setPatientQrToken("WIN-" + Math.random().toString(36).substring(2, 10).toUpperCase());
+                setIsOpeningAuth(false);
+                if (pendingAction) {
+                  pendingAction();
+                  setPendingAction(null);
+                } else {
+                  setActiveTab("dossier");
+                }
+              }}
+              onLoginDoctor={(profile) => {
+                setCurrentUser({ type: 'doctor', profile, isLoggedIn: true });
+                setIsOpeningAuth(false);
+                if (pendingAction) {
+                  pendingAction();
+                  setPendingAction(null);
+                } else {
+                  setActiveTab("doctor");
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
 
 // Initialize Gemini API client lazily to avoid startup crash if key is missing
 let aiClient: GoogleGenAI | null = null;
@@ -211,7 +211,7 @@ Provide a highly structured, clinically precise response in elegant French:
 Avertissement légal clair : Cette analyse est un accompagnement préventif et ne remplace pas une consultation médicale. No formatting errors, use beautiful markdown.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.0-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are an empathetic, highly specialized preventive medicine and digital therapeutics counselor. You speak perfect French, avoiding complex jargon but maintaining absolute clinical accuracy.",
@@ -250,7 +250,7 @@ Provide a strict, professional, and exhaustive safety audit in French:
 Provide absolute technical clarity without generic fluff. Use beautiful markdown tables if appropriate.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.0-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are an advanced clinical pharmacologist and medical portal safety compliance auditor. You write precise, high-density, authoritative clinical reviews in French.",
@@ -301,7 +301,7 @@ Provide absolute technical clarity without generic fluff. Use beautiful markdown
 
       const ai = getAiClient();
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.0-flash",
         contents: userPrompt,
         config: {
           systemInstruction,

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: win-health
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_PLATFORM_KEY
+        sync: false
+      - key: LNBITS_API_KEY
+        sync: false
+      - key: LNBITS_URL
+        value: https://legend.lnbits.com
