@@ -2700,8 +2700,9 @@ export default function App() {
               </div>
             )}
             </div>
-            </motion.div>
           )}
+          </motion.div>
+        )}
 
           {/* TAB 3: CRYPTOGRAPHIC VAULT & AUDIT TRAILS */}
           {activeTab === "security" && (
