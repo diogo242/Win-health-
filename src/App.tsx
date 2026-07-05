@@ -1859,9 +1859,9 @@ export default function App() {
                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-500 space-y-1.5">
                       <span className="font-semibold text-slate-300 block">Dernières constantes transmises :</span>
                       <ul className="space-y-0.5 font-mono">
-                        <li>• TA: {biometricsHistory[biometricsHistory.length-1].systolic}/{biometricsHistory[biometricsHistory.length-1].diastolic} mmHg</li>
-                        <li>• Cardiaque: {biometricsHistory[biometricsHistory.length-1].heartRate} bpm</li>
-                        <li>• Glycémie: {biometricsHistory[biometricsHistory.length-1].glucose} g/L</li>
+                        <li>&#8226; TA: {biometricsHistory[biometricsHistory.length-1].systolic}/{biometricsHistory[biometricsHistory.length-1].diastolic} mmHg</li>
+                        <li>&#8226; Cardiaque: {biometricsHistory[biometricsHistory.length-1].heartRate} bpm</li>
+                        <li>&#8226; Glycémie: {biometricsHistory[biometricsHistory.length-1].glucose} g/L</li>
                       </ul>
                     </div>
                   </div>
@@ -1950,7 +1950,7 @@ export default function App() {
                         <div className="space-y-0.5 pt-1.5 border-t border-slate-200/50">
                           {sp.drugs.map((d, i) => (
                             <div key={i} className="text-[11px] text-slate-700 font-medium">
-                              • {d.name} ({d.dosage}) - {d.duration}
+                              &#8226; {d.name} ({d.dosage}) - {d.duration}
                             </div>
                           ))}
                         </div>
@@ -2674,7 +2674,7 @@ export default function App() {
                           <div className="space-y-0.5 pt-1.5 border-t border-slate-200/50">
                             {sp.drugs.map((d, i) => (
                               <div key={i} className="text-[11px] text-slate-700 font-medium">
-                                • {d.name} ({d.dosage}) - {d.duration}
+                                &#8226; {d.name} ({d.dosage}) - {d.duration}
                               </div>
                             ))}
                           </div>
