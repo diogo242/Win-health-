@@ -1,24 +1,7 @@
 import React, { useState } from 'react';
 import { User, Shield, Activity, Calendar, Phone, Mail, ArrowRight, Stethoscope, Lock } from 'lucide-react';
-import { motion } from 'framer-motion';
-
-export type UserType = 'patient' | 'doctor';
-
-export interface PatientProfile {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  bloodGroup: string;
-  birthDate: string;
-}
-
-export interface DoctorProfile {
-  fullName: string;
-  specialty: string;
-  email: string;
-  rpps: string;
-}
+import { motion } from 'motion/react';
+import { UserType, PatientProfile, DoctorProfile } from '../types';
 
 interface AuthScreenProps {
   onLoginPatient: (profile: PatientProfile) => void;
